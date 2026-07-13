@@ -1,0 +1,5 @@
+step,num_samples,cider,annotations_path,predictions_path
+1,1,28.5714,results\similarity\coco_caption_annotations.json,results\similarity\coco_caption_predictions.json
+2,2,23.9631,results\similarity\coco_caption_annotations.json,results\similarity\coco_caption_predictions.json
+3,3,21.3808,results\similarity\coco_caption_annotations.json,results\similarity\coco_caption_predictions.json
+3,3,21.3808,results\similarity\coco_caption_annotations.json,results\similarity\coco_caption_predictions.json

@@ -7,8 +7,10 @@ def generate_text(
     vision_x,
     prompt,
     device,
-    max_new_tokens=20,
-    num_beams=3,
+    max_new_tokens=16,
+    num_beams=4,
+    repetition_penalty=1.1,
+    no_repeat_ngram_size=3,
 ):
 
     tokenizer.padding_side = "left"
@@ -34,6 +36,9 @@ def generate_text(
             min_new_tokens=1,
             max_new_tokens=max_new_tokens,
             num_beams=num_beams,
+            repetition_penalty=repetition_penalty,
+            no_repeat_ngram_size=no_repeat_ngram_size,
+            early_stopping=True,
         )
 
     # Prompt 길이

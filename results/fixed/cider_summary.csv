@@ -1,0 +1,5 @@
+step,num_samples,cider,annotations_path,predictions_path
+1,1,23.5294,results\fixed\coco_caption_annotations.json,results\fixed\coco_caption_predictions.json
+2,2,17.1701,results\fixed\coco_caption_annotations.json,results\fixed\coco_caption_predictions.json
+3,3,18.8541,results\fixed\coco_caption_annotations.json,results\fixed\coco_caption_predictions.json
+3,3,18.8541,results\fixed\coco_caption_annotations.json,results\fixed\coco_caption_predictions.json

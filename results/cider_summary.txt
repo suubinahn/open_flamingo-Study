@@ -1,0 +1,6 @@
+CIDEr evaluation summary
+Total evaluated samples: 2
+Current CIDEr: 28.41
+Annotations: results\coco_caption_annotations.json
+Predictions: results\coco_caption_predictions.json
+CSV summary: results\cider_summary.csv
