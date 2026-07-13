@@ -64,9 +64,10 @@ def load_model():
         strict=False,
     )
 
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    )
+    # The available 6 GB GPU cannot hold the full OpenFlamingo 3B model.
+    # Keep inference on CPU unless the loading strategy is changed (for
+    # example, with quantization or CPU/GPU offloading).
+    device = torch.device("cpu")
 
     model = model.to(device)
     model.eval()

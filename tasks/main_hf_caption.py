@@ -202,6 +202,46 @@ def find_similar_examples_by_image(
     )
 
 
+def save_image_comparison(
+    example1,
+    example1_index,
+    example2,
+    example2_index,
+    query,
+    query_index,
+):
+    """Save the retrieved examples and query image in one contact sheet."""
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    panels = [
+        (example1["image"], f"Example 1 (index {example1_index})"),
+        (example2["image"], f"Example 2 (index {example2_index})"),
+        (query["image"], f"Query (index {query_index})"),
+    ]
+
+    panel_width, panel_height = PREVIEW_SIZE
+    canvas = Image.new(
+        "RGB",
+        (panel_width * len(panels), panel_height + LABEL_HEIGHT),
+        "white",
+    )
+    drawer = ImageDraw.Draw(canvas)
+
+    for panel_index, (image, label) in enumerate(panels):
+        preview = image.convert("RGB").copy()
+        preview.thumbnail(PREVIEW_SIZE, Image.LANCZOS)
+
+        x_offset = panel_index * panel_width
+        x_image = x_offset + (panel_width - preview.width) // 2
+        y_image = (panel_height - preview.height) // 2
+        canvas.paste(preview, (x_image, y_image))
+        drawer.text((x_offset + 8, panel_height + 10), label, fill="black")
+
+    output_path = RESULTS_DIR / f"query_{query_index:05d}_comparison.png"
+    canvas.save(output_path)
+    return output_path
+
+
 def main():
 
     print("=" * 60)
@@ -231,48 +271,6 @@ def main():
         streaming=True,
     )
 
-
-def save_image_comparison(
-    example1,
-    example1_index,
-    example2,
-    example2_index,
-    query,
-    query_index,
-):
-    """Save the retrieved examples and query image in one contact sheet."""
-
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    panels = [
-        (example1["image"], f"Example 1 (index {example1_index})"),
-        (example2["image"], f"Example 2 (index {example2_index})"),
-        (query["image"], f"Query (index {query_index})"),
-    ]
-
-    panel_width, panel_height = PREVIEW_SIZE
-    canvas = Image.new(
-        "RGB",
-        (panel_width * len(panels), panel_height + LABEL_HEIGHT),
-        "white",
-    )
-    drawer = ImageDraw.Draw(canvas)
-
-    for panel_index, (image, label) in enumerate(panels):
-        preview = image.convert("RGB").copy()
-        preview.thumbnail(PREVIEW_SIZE, Image.LANCZOS)
-
-        x_offset = panel_index * panel_width
-        x_image = x_offset + (panel_width - preview.width) // 2
-        y_image = (panel_height - preview.height) // 2
-
-        canvas.paste(preview, (x_image, y_image))
-        drawer.text((x_offset + 8, panel_height + 10), label, fill="black")
-
-    output_path = RESULTS_DIR / f"query_{query_index:05d}_comparison.png"
-    canvas.save(output_path)
-
-    return output_path
 
     # 전체 COCO split을 내려받지 않고 앞의 일부 샘플만 사용합니다.
     dataset = list(dataset_stream.take(NUM_DATASET_SAMPLES))
