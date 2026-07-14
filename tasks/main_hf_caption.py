@@ -19,12 +19,17 @@ import argparse
 import csv
 import json
 import random
+import sys
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from datasets import load_dataset
 from PIL import Image, ImageDraw
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from inference import generate_text
 from open_flamingo.eval.coco_metric import compute_cider
@@ -50,6 +55,7 @@ EMBEDDING_CACHE_PATH = Path(
     "cache/coco_caption_val_200_vitl14_embeddings.pt"
 )
 RESULTS_DIR = Path("results")
+ACTIVE_RESULTS_DIR = RESULTS_DIR
 PREVIEW_SIZE = (320, 320)
 LABEL_HEIGHT = 36
 
@@ -66,11 +72,63 @@ def parse_args():
         type=int,
         default=DEFAULT_SAMPLES_PER_MODE,
     )
+    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--run-name", default=None)
+    parser.add_argument("--overwrite-results", action="store_true")
     return parser.parse_args()
 
 
 def get_mode_result_dir(mode):
-    return RESULTS_DIR / mode
+    return ACTIVE_RESULTS_DIR / mode
+
+
+def configure_results_dir(run_name):
+    global ACTIVE_RESULTS_DIR
+    ACTIVE_RESULTS_DIR = RESULTS_DIR / run_name
+    ACTIVE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def load_or_create_query_indices(dataset_size, num_queries, seed, query_set_path):
+    """Persist one unique query set for a fair comparison across modes."""
+    if num_queries > dataset_size:
+        raise ValueError("samples-per-mode cannot exceed the loaded dataset size")
+
+    if query_set_path.exists():
+        with query_set_path.open("r", encoding="utf-8") as f:
+            query_set = json.load(f)
+        indices = query_set["query_indices"]
+        if (
+            query_set.get("dataset_size") != dataset_size
+            or query_set.get("seed") != seed
+            or len(indices) != num_queries
+        ):
+            raise ValueError(
+                "Existing query set does not match this run. Choose another "
+                "--run-name or use matching --seed and --samples-per-mode."
+            )
+        return indices
+
+    indices = random.Random(seed).sample(range(dataset_size), num_queries)
+    with query_set_path.open("w", encoding="utf-8") as f:
+        json.dump(
+            {"dataset_size": dataset_size, "seed": seed, "query_indices": indices},
+            f,
+            indent=2,
+        )
+    return indices
+
+
+def prepare_mode_outputs(mode, overwrite):
+    """Do not mix metric rows from two separate runs."""
+    existing = [path for path in get_mode_eval_paths(mode) if path.exists()]
+    if existing and not overwrite:
+        raise FileExistsError(
+            f"Existing outputs found for '{mode}'. Use another --run-name or "
+            "pass --overwrite-results."
+        )
+    if overwrite:
+        for path in existing:
+            path.unlink()
 
 
 def get_mode_eval_paths(mode):
@@ -366,7 +424,7 @@ def save_evaluation_summary(dataset, predictions, cider_score, step=None, mode="
         f.write(f"CSV summary: {summary_csv_path}\n")
 
 
-def evaluate_current_predictions(dataset, predictions, mode="similarity"):
+def evaluate_current_predictions(dataset, predictions, mode="similarity", save_summary=True):
     """현재까지 누적된 예측들에 대해 CIDEr를 계산하고 결과를 저장합니다."""
     if not predictions:
         return None
@@ -381,13 +439,14 @@ def evaluate_current_predictions(dataset, predictions, mode="similarity"):
         str(annotations_path),
     )
     cider_score = cider_scores.get("CIDEr", float("nan")) * 100.0
-    save_evaluation_summary(
-        dataset=dataset,
-        predictions=predictions,
-        cider_score=cider_score,
-        step=len(predictions),
-        mode=mode,
-    )
+    if save_summary:
+        save_evaluation_summary(
+            dataset=dataset,
+            predictions=predictions,
+            cider_score=cider_score,
+            step=len(predictions),
+            mode=mode,
+        )
 
     return cider_score
 
@@ -440,8 +499,10 @@ def main():
     print("OpenFlamingo + HuggingFace COCO Caption")
     print("=" * 60)
 
-    # 매 실행마다 다른 query 순서를 사용합니다.
-    rng = random.Random()
+    # A run name identifies the fixed query set and its outputs.
+    run_name = args.run_name or f"seed{args.seed}_n{args.samples_per_mode}"
+    configure_results_dir(run_name)
+    print(f"Run directory: {ACTIVE_RESULTS_DIR}")
 
     # --------------------------------------------------------
     # 모델 로드
@@ -468,6 +529,13 @@ def main():
     dataset = list(dataset_stream.take(NUM_DATASET_SAMPLES))
 
     print(f"Dataset loaded: {len(dataset)} streamed samples")
+    query_indices = load_or_create_query_indices(
+        dataset_size=len(dataset),
+        num_queries=args.samples_per_mode,
+        seed=args.seed,
+        query_set_path=ACTIVE_RESULTS_DIR / "query_indices.json",
+    )
+    print(f"Fixed query indices: {query_indices}")
 
     # --------------------------------------------------------
     # 이미지 임베딩 준비
@@ -483,7 +551,9 @@ def main():
 
     modes = [args.example_mode] if args.example_mode != "all" else ["similarity", "fixed", "random"]
 
+    stop_requested = False
     for example_mode in modes:
+        prepare_mode_outputs(example_mode, overwrite=args.overwrite_results)
         predictions = []
         mode_dir = get_mode_result_dir(example_mode)
         print("\n" + "=" * 60)
@@ -494,12 +564,7 @@ def main():
         # --------------------------------------------------------
         # 반복 추론
         # --------------------------------------------------------
-        while True:
-            if len(predictions) >= args.samples_per_mode:
-                print(
-                    f"Reached {args.samples_per_mode} samples for {example_mode}; moving on."
-                )
-                break
+        for query_index in query_indices:
 
             print("\n" + "=" * 60)
             print("Enter : Next query")
@@ -510,10 +575,10 @@ def main():
 
             if command == "q":
                 print("Program terminated.")
+                stop_requested = True
                 break
 
             # 재현 가능한 방식으로 query 하나를 선택합니다.
-            query_index = rng.randrange(len(dataset))
             query = dataset[query_index]
 
             # query의 정답은 검색에 쓰지 않고, 결과 비교에만 사용합니다.
@@ -538,7 +603,7 @@ def main():
                 dataset=dataset,
                 num_examples=NUM_SHOTS,
                 mode=example_mode,
-                rng=rng,
+                rng=random.Random(args.seed + query_index),
             )
 
             example1 = dataset[example_indices[0]]
@@ -651,6 +716,7 @@ def main():
                 dataset=dataset,
                 predictions=predictions,
                 mode=example_mode,
+                save_summary=False,
             )
 
             print("\n" + "=" * 60)
@@ -663,6 +729,9 @@ def main():
             print(f"Predictions: {predictions_path}")
             print(f"CSV summary: {summary_csv_path}")
             print(f"Text summary: {summary_txt_path}")
+
+        if stop_requested:
+            break
 
 
 if __name__ == "__main__":

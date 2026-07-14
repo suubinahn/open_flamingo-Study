@@ -8,3 +8,5 @@ sentencepiece
 datasets
 numpy<2
 certifi
+pycocoevalcap
+pycocotools

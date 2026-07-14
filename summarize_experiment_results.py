@@ -1,3 +1,4 @@
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -7,10 +8,20 @@ RESULTS_ROOT = ROOT / "results"
 MODES = ["similarity", "fixed", "random"]
 
 
-def load_summary(mode: str):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Name of a results/<run-name> directory created by main_hf_caption.py.",
+    )
+    return parser.parse_args()
+
+
+def load_summary(mode: str, results_root: Path):
     candidate_paths = [
-        RESULTS_ROOT / mode / "cider_summary.csv",
-        RESULTS_ROOT / "cider_summary.csv",
+        results_root / mode / "cider_summary.csv",
+        results_root / "cider_summary.csv",
     ]
 
     for summary_path in candidate_paths:
@@ -25,7 +36,7 @@ def load_summary(mode: str):
 
         last_row = rows[-1]
         label = mode
-        if summary_path.parent == RESULTS_ROOT and summary_path.name == "cider_summary.csv":
+        if summary_path.parent == results_root and summary_path.name == "cider_summary.csv":
             label = f"{mode} (legacy root results)"
 
         return {
@@ -39,14 +50,17 @@ def load_summary(mode: str):
 
 
 def main():
+    args = parse_args()
+    results_root = RESULTS_ROOT / args.run_name if args.run_name else RESULTS_ROOT
     summaries = []
     for mode in MODES:
-        summary = load_summary(mode)
+        summary = load_summary(mode, results_root)
         if summary is not None:
             summaries.append(summary)
 
     print("=" * 60)
     print("Experiment summary")
+    print(f"Results root: {results_root}")
     print("=" * 60)
 
     if not summaries:

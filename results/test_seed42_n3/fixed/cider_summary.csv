@@ -1,0 +1,4 @@
+step,num_samples,cider,annotations_path,predictions_path
+1,1,0.0,results\test_seed42_n3\fixed\coco_caption_annotations.json,results\test_seed42_n3\fixed\coco_caption_predictions.json
+2,2,69.657,results\test_seed42_n3\fixed\coco_caption_annotations.json,results\test_seed42_n3\fixed\coco_caption_predictions.json
+3,3,56.512,results\test_seed42_n3\fixed\coco_caption_annotations.json,results\test_seed42_n3\fixed\coco_caption_predictions.json

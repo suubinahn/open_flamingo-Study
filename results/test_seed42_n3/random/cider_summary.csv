@@ -1,0 +1,4 @@
+step,num_samples,cider,annotations_path,predictions_path
+1,1,0.0,results\test_seed42_n3\random\coco_caption_annotations.json,results\test_seed42_n3\random\coco_caption_predictions.json
+2,2,64.5071,results\test_seed42_n3\random\coco_caption_annotations.json,results\test_seed42_n3\random\coco_caption_predictions.json
+3,3,68.6506,results\test_seed42_n3\random\coco_caption_annotations.json,results\test_seed42_n3\random\coco_caption_predictions.json
